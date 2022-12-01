@@ -29,7 +29,7 @@ def part1(elves: list[list[int]]) -> int:
 
 
 def part2(elves: list[list[int]]) -> int:
-    pass
+    return sum(sorted([sum(elf) for elf in elves])[-3:])
 
 
 if __name__ == "__main__":
