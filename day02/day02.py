@@ -18,7 +18,7 @@ class Outcome(Enum):
     Win = 6
 
 
-def load(input_path: Path) -> list[tuple[Move, Move]]:
+def load(input_path: Path) -> list[tuple[str, str]]:
     moves = []
     with open(input_path) as f:
         while True:
@@ -26,8 +26,7 @@ def load(input_path: Path) -> list[tuple[Move, Move]]:
             if not line:
                 break
             line = line.strip().split(" ")
-            moves.append(({"A": Move.Rock, "B": Move.Paper, "C": Move.Scissors}[line[0]],
-                          {"X": Move.Rock, "Y": Move.Paper, "Z": Move.Scissors}[line[1]]))
+            moves.append((line[0], line[1]))
     return moves
 
 
@@ -40,16 +39,20 @@ def match_outcome(opponent: Move, own: Move) -> Outcome:
         return Outcome.Loss
 
 
-def score(move: tuple[Move, Move]) -> int:
-    return {Move.Rock: 1, Move.Paper: 2, Move.Scissors: 3}[move[1]] + match_outcome(move[0], move[1]).value
+def score_part1(move: tuple[str, str]) -> int:
+    return {"X": 1, "Y": 2, "Z": 3}[move[1]] + match_outcome({"A": Move.Rock, "B": Move.Paper, "C": Move.Scissors}[move[0]], {"X": Move.Rock, "Y": Move.Paper, "Z": Move.Scissors}[move[1]]).value
 
 
-def part1(moves: list[list[int]]) -> int:
-    return sum([score(m) for m in moves])
+def part1(moves: list[tuple[str, str]]) -> int:
+    return sum([score_part1(m) for m in moves])
 
 
-def part2(moves: list[list[int]]) -> int:
-    pass  # TODO
+def part2(moves: list[tuple[str, str]]) -> int:
+    score = 0
+    for opponent, outcome in [({"A": Move.Rock, "B": Move.Paper, "C": Move.Scissors}[a], {"X": Outcome.Loss, "Y": Outcome.Draw, "Z": Outcome.Win}[b]) for (a, b) in moves]:
+        own = Move(((opponent.value + {Outcome.Draw: 0, Outcome.Win: 1, Outcome.Loss: 2}[outcome]) - 1) % 3 + 1)
+        score += own.value + outcome.value
+    return score
 
 
 if __name__ == "__main__":
