@@ -4,6 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 import string
+import operator
+import functools
 
 
 def load(input_path: Path) -> list[list[str]]:
@@ -23,7 +25,7 @@ def part1(rucksacks: list[list[str]]) -> int:
 
 
 def part2(rucksacks: list[list[str]]) -> int:
-    pass  # TODO
+    return sum([string.ascii_letters.find(functools.reduce(operator.and_, group, set(string.ascii_letters)).pop()) + 1 for group in [[set(elem) for elem in rucksacks[i:i+3]] for i in range(0, len(rucksacks), 3)]])
 
 
 if __name__ == "__main__":
