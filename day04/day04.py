@@ -31,7 +31,11 @@ def part1(pairs: InputData) -> int:
 
 
 def part2(pairs: InputData) -> int:
-    pass  # TODO
+    count = 0
+    for a, b in pairs:
+        if not ((a[1] < b[0]) or (b[1] < a[0])):
+            count += 1
+    return count
 
 
 if __name__ == "__main__":
