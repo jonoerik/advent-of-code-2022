@@ -46,7 +46,12 @@ def part1(input_data: InputData) -> str:
 
 
 def part2(input_data: InputData) -> str:
-    pass  # TODO
+    stacks, moves = input_data
+    for count, s_from, s_to in moves:
+        assert s_from != s_to
+        stacks[s_to].extend(stacks[s_from][-count:])
+        stacks[s_from] = stacks[s_from][:-count]
+    return "".join([l[-1] for l in stacks])
 
 
 if __name__ == "__main__":
