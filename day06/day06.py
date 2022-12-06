@@ -12,14 +12,16 @@ def load(input_path: Path) -> InputData:
         return list(f.readline().strip())
 
 
-def part1(input_data: InputData) -> str:
+def part1(input_data: InputData) -> int:
     for i in range(len(input_data) - 3):
         if len(set(input_data[i:i+4])) == 4:
             return i + 4
 
 
-def part2(input_data: InputData) -> str:
-    pass  # TODO
+def part2(input_data: InputData) -> int:
+    for i in range(len(input_data) - 13):
+        if len(set(input_data[i:i + 14])) == 14:
+            return i + 14
 
 
 if __name__ == "__main__":
