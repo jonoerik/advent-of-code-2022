@@ -58,7 +58,7 @@ class PuzzleDir:
         return sum([x.size() for x in self.contents.values()])
 
 
-def part1(input_data: InputData) -> int:
+def BuildFsTree(input_data: InputData) -> PuzzleDir:
     working_dir = "/"
     root = PuzzleDir()
 
@@ -79,6 +79,12 @@ def part1(input_data: InputData) -> int:
             for x in cmd.dirs:
                 d.contents[x] = PuzzleDir()
 
+    return root
+
+
+def part1(input_data: InputData) -> int:
+    root = BuildFsTree(input_data)
+
     def get_small_dirs(pd: PuzzleDir) -> list[int]:
         l = []
         if (s := pd.size()) <= 100000:
@@ -87,11 +93,22 @@ def part1(input_data: InputData) -> int:
             if isinstance(sd, PuzzleDir):
                 l.extend(get_small_dirs(sd))
         return l
+
     return sum(get_small_dirs(root))
 
 
 def part2(input_data: InputData) -> int:
-    pass  # TODO
+    root = BuildFsTree(input_data)
+    space_required = 30000000 - 70000000 + root.size()
+
+    def get_sizes(pd: PuzzleDir) -> list[int]:
+        l = [pd.size()]
+        for sd in pd.contents.values():
+            if isinstance(sd, PuzzleDir):
+                l.extend(get_sizes(sd))
+        return l
+
+    return next(filter(lambda x: x >= space_required, sorted(get_sizes(root))))
 
 
 if __name__ == "__main__":
