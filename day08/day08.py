@@ -3,6 +3,7 @@
 import argparse
 import sys
 from pathlib import Path
+import math
 
 # List of rows, data[row][col]
 InputData = list[list[int]]
@@ -16,7 +17,7 @@ def load(input_path: Path) -> InputData:
     return trees
 
 
-def scan_row(input_data: InputData, visible: list[list[bool]], row: int):
+def scan_row(input_data: InputData, visible: list[list[bool]], row: int) -> None:
     cols = len(input_data[0])
 
     # Left-to-right
@@ -36,7 +37,7 @@ def scan_row(input_data: InputData, visible: list[list[bool]], row: int):
             visible[row][col] = True
 
 
-def scan_col(input_data: InputData, visible: list[list[bool]], col: int):
+def scan_col(input_data: InputData, visible: list[list[bool]], col: int) -> None:
     rows = len(input_data)
 
     # Top-to-bottom
@@ -69,8 +70,29 @@ def part1(input_data: InputData) -> int:
     return sum([sum([1 if x else 0 for x in row]) for row in visible])
 
 
+def scenic_score(input_data: InputData, row: int, col: int) -> int:
+    rows = len(input_data)
+    cols = len(input_data[0])
+
+    def scan(dr: int, dc: int) -> int:
+        scan_dist = 0
+        nextr = row + dr
+        nextc = col + dc
+        while 0 <= nextr < rows and 0 <= nextc < cols:
+            scan_dist += 1
+            if input_data[nextr][nextc] >= input_data[row][col]:
+                break
+            nextr += dr
+            nextc += dc
+        return scan_dist
+
+    return math.prod(scan(dr, dc) for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)])
+
+
 def part2(input_data: InputData) -> int:
-    pass  # TODO
+    rows = len(input_data)
+    cols = len(input_data[0])
+    return max([scenic_score(input_data, row, col) for row in range(1, rows-1) for col in range(1, cols-1)])
 
 
 if __name__ == "__main__":
