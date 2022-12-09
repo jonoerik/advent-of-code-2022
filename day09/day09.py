@@ -41,7 +41,15 @@ def part1(input_data: InputData) -> int:
 
 
 def part2(input_data: InputData) -> int:
-    pass  # TODO
+    knots = [(0, 0) for _ in range(10)]
+    tail_visited = {knots[-1]}
+    for dx, dy, dist in input_data:
+        for _ in range(dist):
+            knots[0] = (knots[0][0] + dx, knots[0][1] + dy)
+            for i in range(1, len(knots)):
+                knots[i] = moved_tail(knots[i-1], knots[i])
+            tail_visited.add(knots[-1])
+    return len(tail_visited)
 
 
 if __name__ == "__main__":
