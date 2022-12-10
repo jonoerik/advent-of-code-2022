@@ -47,8 +47,26 @@ def part1(input_data: InputData) -> int:
     return sig_strength_sum
 
 
-def part2(input_data: InputData) -> int:
-    pass  # TODO
+def part2(input_data: InputData) -> str:
+    # Convert to 1-cycle-per-instruction format
+    instructions = []
+    for i in input_data:
+        if i[0] == Opcode.addx:
+            instructions.append((Opcode.noop, None))
+        instructions.append(i)
+    x = 1
+    width = 40
+    height = 6
+    video_buffer = [[False for col in range(width)] for row in range(height)]
+
+    for i in range(width * height):
+        op, operand = instructions[i]
+        beam_pos = i % width
+        video_buffer[i // width][i % width] = (abs(beam_pos - x) <= 1)
+        if op == Opcode.addx:
+            x += operand
+
+    print("\n".join(["".join(["#" if pixel else "." for pixel in row]) for row in video_buffer]))
 
 
 if __name__ == "__main__":
