@@ -4,6 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 from enum import Enum
+from PIL import Image
+import pytesseract
 
 
 class Opcode(Enum):
@@ -66,7 +68,14 @@ def part2(input_data: InputData) -> str:
         if op == Opcode.addx:
             x += operand
 
-    print("\n".join(["".join(["#" if pixel else "." for pixel in row]) for row in video_buffer]))
+    # Use Tesseract OCR to convert video buffer to a string
+    border = 1
+    img = Image.new("1", (width + border * 2, height + border * 2), 1)
+    for row in range(height):
+        for col in range(width):
+            if video_buffer[row][col]:
+                img.putpixel((col + border, row + border), 0)
+    return pytesseract.image_to_string(img, lang="eng", config="-c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ --psm 8").strip()
 
 
 if __name__ == "__main__":
