@@ -6,18 +6,18 @@ from pathlib import Path
 from typing import Callable
 import operator
 import math
+import functools
 
 
 class Monkey:
-    def __init__(self, items: list[int], op: Callable[[int], int], test: Callable[[int], bool], targets: dict[bool, int]):
+    def __init__(self, items: list[int], op: Callable[[int], int], test_divisor: int, targets: dict[bool, int]):
         self.items = items
         self.op = op
-        self.test = test
+        self.test_divisor = test_divisor
         self.targets = targets
         self.inspections_count = 0
 
 
-# List of instructions (opcode, operand)
 InputData = list[Monkey]
 
 
@@ -29,10 +29,10 @@ def load(input_path: Path) -> InputData:
             starting_items = [int(x) for x in f.readline().strip().split(": ")[-1].split(", ")]
             op_line = f.readline().strip().split(" = ")[-1].split(" ")
             op = (lambda a, o, b: lambda x: {"+": operator.add, "-": operator.sub, "*": operator.mul, "/": operator.floordiv}[o](x if a == "old" else int(a), x if b == "old" else int(b)))(op_line[0], op_line[1], op_line[2])
-            test = (lambda test_val: lambda x: (x % test_val == 0))(int(f.readline().strip().split(" ")[-1]))
+            test_divisor = int(f.readline().strip().split(" ")[-1])
             target_true = int(f.readline().strip().split(" ")[-1])
             target_false = int(f.readline().strip().split(" ")[-1])
-            monkeys.append(Monkey(starting_items, op, test, {True: target_true, False: target_false}))
+            monkeys.append(Monkey(starting_items, op, test_divisor, {True: target_true, False: target_false}))
             if not f.readline():
                 break
     return monkeys
@@ -45,13 +45,22 @@ def part1(input_data: InputData) -> int:
                 item = monkey.items.pop(0)
                 item = monkey.op(item)
                 item //= 3
-                input_data[monkey.targets[monkey.test(item)]].items.append(item)
+                input_data[monkey.targets[item % monkey.test_divisor == 0]].items.append(item)
                 monkey.inspections_count += 1
     return math.prod(sorted([m.inspections_count for m in input_data])[-2:])
 
 
 def part2(input_data: InputData) -> int:
-    pass  # TODO
+    lcm = math.lcm(*[m.test_divisor for m in input_data])  # Least common multiple
+    for _ in range(10000):
+        for monkey in input_data:
+            while monkey.items:
+                item = monkey.items.pop(0)
+                item = monkey.op(item)
+                item %= lcm
+                input_data[monkey.targets[item % monkey.test_divisor == 0]].items.append(item)
+                monkey.inspections_count += 1
+    return math.prod(sorted([m.inspections_count for m in input_data])[-2:])
 
 
 if __name__ == "__main__":
