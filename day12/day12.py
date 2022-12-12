@@ -62,7 +62,31 @@ def part1(input_data: InputData) -> int:
 
 
 def part2(input_data: InputData) -> int:
-    pass  # TODO
+    heightmap, start, goal = input_data
+    distance = [[None for col in range(len(heightmap[0]))] for row in range(len(heightmap))]
+
+    # Start at the end point, and search backwards for an elevation==0 tile
+    # dict of (position: tentative distance)
+    next_nodes = {goal: 0}
+    while True:
+        current, current_dist = sorted(next_nodes.items(), key=lambda x: x[1])[0]
+        del next_nodes[current]
+        if heightmap[current[0]][current[1]] == 0:
+            return current_dist
+        distance[current[0]][current[1]] = current_dist
+
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            next_r = current[0] + dr
+            next_c = current[1] + dc
+            # If destination is within heightmap bounds, unvisited, and can be moved to from the current position
+            if 0 <= next_r < len(heightmap) and 0 <= next_c < len(heightmap[0]) and \
+                    distance[next_r][next_c] is None and \
+                    heightmap[next_r][next_c] >= heightmap[current[0]][current[1]] - 1:
+                next_pos = (next_r, next_c)
+                if next_pos in next_nodes:
+                    next_nodes[next_pos] = min(current_dist + 1, next_nodes[next_pos])
+                else:
+                    next_nodes[next_pos] = current_dist + 1
 
 
 if __name__ == "__main__":
