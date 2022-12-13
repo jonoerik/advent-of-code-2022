@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 import typing
 from enum import Enum
+import functools
 
 InputVal = typing.Union[int, "InputList"]
 InputList = list[InputVal]
@@ -90,7 +91,10 @@ def part1(input_data: InputData) -> int:
 
 
 def part2(input_data: InputData) -> int:
-    pass  # TODO
+    input_data = [x for sublist in input_data for x in sublist]
+    input_data.extend([[[2]], [[6]]])
+    input_data.sort(key=functools.cmp_to_key(lambda a, b: {OrderingResult.Ordered: -1, OrderingResult.Unordered: 1, OrderingResult.Inconclusive: 0}[order_correct(a, b)]))
+    return (input_data.index([[2]]) + 1) * (input_data.index([[6]]) + 1)
 
 
 if __name__ == "__main__":
