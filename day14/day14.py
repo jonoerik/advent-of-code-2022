@@ -63,7 +63,40 @@ def part1(input_data: InputData) -> int:
 
 
 def part2(input_data: InputData) -> int:
-    pass  # TODO
+    minx = min([min([point[0] for point in line]) for line in input_data])
+    maxx = max([max([point[0] for point in line]) for line in input_data])
+    maxy = max([max([point[1] for point in line]) for line in input_data])
+    height = maxy + 3
+    minx -= height
+    maxx += height
+    width = maxx - minx + 1
+    input_data.append([(minx, maxy + 2), (maxx, maxy + 2)])
+    input_data = [[(x - minx, y) for x, y in line] for line in input_data]
+    sand_start = (500 - minx, 0)
+    cave = [[False for col in range(width)] for row in range(height)]
+    for line in input_data:
+        if len(line) == 1:
+            cave[line[0][1]][line[0][0]] = True
+        else:
+            for a, b in itertools.pairwise(line):
+                for x, y in line_points(a, b):
+                    cave[y][x] = True
+
+    sand_count = 0
+    while True:
+        sand = sand_start
+        while True:
+            for dx, dy in [(0, 1), (-1, 1), (1, 1)]:
+                if not cave[sand[1] + dy][sand[0] + dx]:
+                    sand = (sand[0] + dx, sand[1] + dy)
+                    break
+            else:
+                break
+
+        cave[sand[1]][sand[0]] = True
+        sand_count += 1
+        if sand == sand_start:
+            return sand_count
 
 
 if __name__ == "__main__":
