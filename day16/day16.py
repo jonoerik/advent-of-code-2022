@@ -5,9 +5,15 @@ import sys
 from pathlib import Path
 import re
 import itertools
+import string
 
 # List of dicts {valve name: (flow rate, dict of tunnels {destination valve: travel cost in minutes}}
-InputData = dict[str, tuple[int, list[str]]]
+InputData = dict[int, tuple[int, dict[int, int]]]
+
+
+def valve_name_to_id(s: str) -> int:
+    assert len(s) == 2
+    return len(string.ascii_uppercase) * string.ascii_uppercase.index(s[0]) + string.ascii_uppercase.index(s[1])
 
 
 def load(input_path: Path) -> InputData:
@@ -17,17 +23,20 @@ def load(input_path: Path) -> InputData:
         while line := f.readline():
             re_match = line_regex.fullmatch(line.strip())
             assert re_match is not None
-            valves[re_match.group("valve")] = (int(re_match.group("flow")), {tunnel: 1 for tunnel in re_match.group("tunnels").split(", ")})
+            valves[valve_name_to_id(re_match.group("valve"))] = (int(re_match.group("flow")), {valve_name_to_id(tunnel): 1 for tunnel in re_match.group("tunnels").split(", ")})
     return valves
 
 
-def released_pressure(input_data: InputData, position: str, opened_valves: list[str], remaining_time: int, memo: dict[tuple[str, frozenset[str], int], int] = {}) -> int:
+def released_pressure(input_data: InputData, position: int, opened_valves: list[int], remaining_time: int, memo: dict[tuple[int, frozenset[int], int], int] | None = None) -> int:
     """
     Find the maximum pressure that can be released from `position`, having already opened `opened_valves`,
     with `remaining_time` minutes left.
     Pressure released by opening a valve is calculated when the valve is opened, projected into the future for
     the remaining time.
     """
+    if memo is None:
+        memo = {}
+
     if (position, frozenset(opened_valves), remaining_time) in memo:
         return memo[(position, frozenset(opened_valves), remaining_time)]
 
@@ -56,7 +65,7 @@ def simplify_tunnels(input_data: InputData) -> None:
     If this leads to multiple connections between a pair of valves, the lowest cost one is retained.
     Tunnel AA, as the starting point, will not be removed.
     """
-    to_remove = [valve for valve in input_data if input_data[valve][0] == 0 and valve != "AA"]
+    to_remove = [valve for valve in input_data if input_data[valve][0] == 0 and valve != valve_name_to_id("AA")]
     while to_remove:
         removed = to_remove.pop()
         for a, b in itertools.permutations(input_data[removed][1], 2):
@@ -70,23 +79,26 @@ def simplify_tunnels(input_data: InputData) -> None:
 
 def part1(input_data: InputData) -> int:
     simplify_tunnels(input_data)
-    return released_pressure(input_data, "AA", [], 30)
+    return released_pressure(input_data, valve_name_to_id("AA"), [], 30)
 
 
 def released_pressure_with_elephant(input_data: InputData,
-                                    my_pos: str,
+                                    my_pos: int,
                                     my_time_walking: int,
-                                    elephant_pos: str,
+                                    elephant_pos: int,
                                     elephant_time_walking: int,
-                                    opened_valves: list[str],
+                                    opened_valves: list[int],
                                     remaining_time: int,
-                                    memo: dict[tuple[str, int, str, int, frozenset[str], int], int] = {}) -> int:
+                                    memo: dict[tuple[int, int, int, int, frozenset[int], int], int] = None) -> int:
     """
     Same as released_pressure(), but with an elephant helping.
-    time_walking parameters must be 0 for each actor to perform an action. Otherwise the time_walking is decremented.
+    time_walking parameters must be 0 for each actor to perform an action. Otherwise the actor is still walking between valves.
     This is so while actors are walking between valves along tunnels of length >= 2, the other actor can still perform actions.
     Time walking also includes time spent turning a valve.
     """
+    if memo is None:
+        memo = {}
+
     memo_keys = [(my_pos, my_time_walking, elephant_pos, elephant_time_walking, frozenset(opened_valves), remaining_time),
                  (elephant_pos, elephant_time_walking, my_pos , my_time_walking, frozenset(opened_valves), remaining_time)]
     for memo_key in memo_keys:
@@ -125,7 +137,7 @@ def released_pressure_with_elephant(input_data: InputData,
 
 def part2(input_data: InputData) -> int:
     simplify_tunnels(input_data)
-    return released_pressure_with_elephant(input_data, "AA", 0, "AA", 0, [], 26)
+    return released_pressure_with_elephant(input_data, valve_name_to_id("AA"), 0, valve_name_to_id("AA"), 0, [], 26)
 
 
 if __name__ == "__main__":
