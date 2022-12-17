@@ -87,7 +87,7 @@ def part2(input_data: InputData) -> int:
     valves = sorted(input_data.keys())
     assert len(valves) <= 32  # Ensure opened_valves bitset will fit in 32bit int
     # Transform valve ids into integers 0 .. n
-    input_data = {valves.index(v): (flow, {valves.index(dest): cost for dest, cost in tunnels.items()}) for v, (flow, tunnels) in input_data.items()}
+    input_data: list[tuple[int, dict[int, int]]] = [(input_data[valves[i]][0], {valves.index(dest): cost for dest, cost in input_data[valves[i]][1].items()}) for i in range(len(valves))]
 
     memo: dict[tuple[int, int, int, int, int, int], int] = {}
 
@@ -96,12 +96,14 @@ def part2(input_data: InputData) -> int:
                                         elephant_pos: int,
                                         elephant_time_walking: int,
                                         opened_valves: int,  # Bitset,
-                                        remaining_time: int) -> int:
+                                        remaining_time: int,
+                                        result_to_beat: int) -> int:
         """
         Same as released_pressure(), but with an elephant helping.
         time_walking parameters must be 0 for each actor to perform an action. Otherwise, the actor is still walking between valves.
         This is so while actors are walking between valves along tunnels of length >= 2, the other actor can still perform actions.
         Time walking also includes time spent turning a valve.
+        result_to_beat is the value which this call's result has to be above or equal to, for it to be useful.
         """
         nonlocal memo
         nonlocal input_data
@@ -114,35 +116,45 @@ def part2(input_data: InputData) -> int:
 
         if remaining_time <= 0:
             return 0
-        # Pressures released by taking different actions this turn.
-        options = []
+
+        # Calculate an upper bound on the pressure that can be released from this action and
+        # actions taken after it.
+        v1 = sorted([input_data[i][0] for i in range(len(input_data)) if not ((1 << i) & opened_valves)], reverse=True)
+        n = min((remaining_time + 1) // 2 * 2, len(v1))
+        v1 = v1[:n]
+        v2 = [x + 1 for x in range(remaining_time - 1, -1, -2) for _ in range(2)]
+        release_upper_bound = sum([a * b for a, b in zip(v1, v2)])
+        if release_upper_bound < result_to_beat:
+            return -0x80000000  # INT32_MIN, probably negative enough to not interfere with results.
+
+        # Best possible pressure release from this and future actions
+        current_best = 0
         match my_time_walking == 0, elephant_time_walking == 0:
             case True, _:
                 # I move.
                 if not ((1 << my_pos) & opened_valves):
                     t = min(1, elephant_time_walking)
                     rp = input_data[my_pos][0] * (remaining_time - 1)
-                    options.append(rp + released_pressure_with_elephant(my_pos, 1 - t, elephant_pos, elephant_time_walking - t, opened_valves | (1 << my_pos), remaining_time - t))
+                    current_best = max(current_best, rp + released_pressure_with_elephant(my_pos, 1 - t, elephant_pos, elephant_time_walking - t, opened_valves | (1 << my_pos), remaining_time - t, max(result_to_beat - rp, current_best - rp)))
                 for dest in input_data[my_pos][1]:
                     t = min(input_data[my_pos][1][dest], elephant_time_walking)
-                    options.append(released_pressure_with_elephant(dest, input_data[my_pos][1][dest] - t, elephant_pos, elephant_time_walking - t, opened_valves, remaining_time - t))
+                    current_best = max(current_best, released_pressure_with_elephant(dest, input_data[my_pos][1][dest] - t, elephant_pos, elephant_time_walking - t, opened_valves, remaining_time - t, max(result_to_beat, current_best)))
             case False, True:
                 # Elephant moves.
                 if not ((1 << elephant_pos) & opened_valves):
                     t = min(1, my_time_walking)
                     rp = input_data[elephant_pos][0] * (remaining_time - 1)
-                    options.append(rp + released_pressure_with_elephant(my_pos, my_time_walking - t, elephant_pos, 1 - t, opened_valves | (1 << elephant_pos), remaining_time - t))
+                    current_best = max(current_best, rp + released_pressure_with_elephant(my_pos, my_time_walking - t, elephant_pos, 1 - t, opened_valves | (1 << elephant_pos), remaining_time - t, max(result_to_beat - rp, current_best - rp)))
                 for dest in input_data[elephant_pos][1]:
                     t = min(input_data[elephant_pos][1][dest], my_time_walking)
-                    options.append(released_pressure_with_elephant(my_pos, my_time_walking - t, dest, input_data[elephant_pos][1][dest] - t, opened_valves, remaining_time - t))
+                    current_best = max(current_best, released_pressure_with_elephant(my_pos, my_time_walking - t, dest, input_data[elephant_pos][1][dest] - t, opened_valves, remaining_time - t, max(result_to_beat, current_best)))
             case False, False:
                 assert False
 
-        p = max(options)
-        memo[memo_key] = p
-        return p
+        memo[memo_key] = current_best
+        return current_best
 
-    return released_pressure_with_elephant(valves.index(valve_name_to_id("AA")), 0, valves.index(valve_name_to_id("AA")), 0, 0, 26)
+    return released_pressure_with_elephant(valves.index(valve_name_to_id("AA")), 0, valves.index(valve_name_to_id("AA")), 0, 0, 26, 0)
 
 
 if __name__ == "__main__":
