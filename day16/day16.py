@@ -82,62 +82,67 @@ def part1(input_data: InputData) -> int:
     return released_pressure(input_data, valve_name_to_id("AA"), [], 30)
 
 
-def released_pressure_with_elephant(input_data: InputData,
-                                    my_pos: int,
-                                    my_time_walking: int,
-                                    elephant_pos: int,
-                                    elephant_time_walking: int,
-                                    opened_valves: list[int],
-                                    remaining_time: int,
-                                    memo: dict[tuple[int, int, int, int, frozenset[int], int], int] = None) -> int:
-    """
-    Same as released_pressure(), but with an elephant helping.
-    time_walking parameters must be 0 for each actor to perform an action. Otherwise the actor is still walking between valves.
-    This is so while actors are walking between valves along tunnels of length >= 2, the other actor can still perform actions.
-    Time walking also includes time spent turning a valve.
-    """
-    if memo is None:
-        memo = {}
+def part2(input_data: InputData) -> int:
+    simplify_tunnels(input_data)
+    valves = sorted(input_data.keys())
+    assert len(valves) <= 32  # Ensure opened_valves bitset will fit in 32bit int
+    # Transform valve ids into integers 0 .. n
+    input_data = {valves.index(v): (flow, {valves.index(dest): cost for dest, cost in tunnels.items()}) for v, (flow, tunnels) in input_data.items()}
 
-    memo_keys = [(my_pos, my_time_walking, elephant_pos, elephant_time_walking, frozenset(opened_valves), remaining_time),
-                 (elephant_pos, elephant_time_walking, my_pos , my_time_walking, frozenset(opened_valves), remaining_time)]
-    for memo_key in memo_keys:
+    memo: dict[tuple[int, int, int, int, int, int], int] = {}
+
+    def released_pressure_with_elephant(my_pos: int,
+                                        my_time_walking: int,
+                                        elephant_pos: int,
+                                        elephant_time_walking: int,
+                                        opened_valves: int,  # Bitset,
+                                        remaining_time: int) -> int:
+        """
+        Same as released_pressure(), but with an elephant helping.
+        time_walking parameters must be 0 for each actor to perform an action. Otherwise, the actor is still walking between valves.
+        This is so while actors are walking between valves along tunnels of length >= 2, the other actor can still perform actions.
+        Time walking also includes time spent turning a valve.
+        """
+        nonlocal memo
+        nonlocal input_data
+
+        memo_key = (my_pos, my_time_walking, elephant_pos, elephant_time_walking, opened_valves, remaining_time) if \
+            (my_pos, my_time_walking) < (elephant_pos, elephant_time_walking) else \
+            (elephant_pos, elephant_time_walking, my_pos, my_time_walking, opened_valves, remaining_time)
         if memo_key in memo:
             return memo[memo_key]
 
-    if remaining_time <= 0:
-        return 0
-    # Pressures released by taking different actions this turn.
-    options = []
-    match my_time_walking == 0, elephant_time_walking == 0:
-        case True, _:
-            # I move.
-            if my_pos not in opened_valves:
-                t = min(1, elephant_time_walking)
-                options.append(input_data[my_pos][0] * (remaining_time - 1) + released_pressure_with_elephant(input_data, my_pos, 1 - t, elephant_pos, elephant_time_walking - t, opened_valves + [my_pos], remaining_time - t, memo))
-            for dest in input_data[my_pos][1]:
-                t = min(input_data[my_pos][1][dest], elephant_time_walking)
-                options.append(released_pressure_with_elephant(input_data, dest, input_data[my_pos][1][dest] - t, elephant_pos, elephant_time_walking - t, opened_valves, remaining_time - t, memo))
-        case False, True:
-            # Elephant moves.
-            if elephant_pos not in opened_valves:
-                t = min(1, my_time_walking)
-                options.append(input_data[elephant_pos][0] * (remaining_time - 1) + released_pressure_with_elephant(input_data, my_pos, my_time_walking - t, elephant_pos, 1 - t, opened_valves + [elephant_pos], remaining_time - t, memo))
-            for dest in input_data[elephant_pos][1]:
-                t = min(input_data[elephant_pos][1][dest], my_time_walking)
-                options.append(released_pressure_with_elephant(input_data, my_pos, my_time_walking - t, dest, input_data[elephant_pos][1][dest] - t, opened_valves, remaining_time - t, memo))
-        case False, False:
-            assert False
+        if remaining_time <= 0:
+            return 0
+        # Pressures released by taking different actions this turn.
+        options = []
+        match my_time_walking == 0, elephant_time_walking == 0:
+            case True, _:
+                # I move.
+                if not ((1 << my_pos) & opened_valves):
+                    t = min(1, elephant_time_walking)
+                    rp = input_data[my_pos][0] * (remaining_time - 1)
+                    options.append(rp + released_pressure_with_elephant(my_pos, 1 - t, elephant_pos, elephant_time_walking - t, opened_valves | (1 << my_pos), remaining_time - t))
+                for dest in input_data[my_pos][1]:
+                    t = min(input_data[my_pos][1][dest], elephant_time_walking)
+                    options.append(released_pressure_with_elephant(dest, input_data[my_pos][1][dest] - t, elephant_pos, elephant_time_walking - t, opened_valves, remaining_time - t))
+            case False, True:
+                # Elephant moves.
+                if not ((1 << elephant_pos) & opened_valves):
+                    t = min(1, my_time_walking)
+                    rp = input_data[elephant_pos][0] * (remaining_time - 1)
+                    options.append(rp + released_pressure_with_elephant(my_pos, my_time_walking - t, elephant_pos, 1 - t, opened_valves | (1 << elephant_pos), remaining_time - t))
+                for dest in input_data[elephant_pos][1]:
+                    t = min(input_data[elephant_pos][1][dest], my_time_walking)
+                    options.append(released_pressure_with_elephant(my_pos, my_time_walking - t, dest, input_data[elephant_pos][1][dest] - t, opened_valves, remaining_time - t))
+            case False, False:
+                assert False
 
-    p = max(options)
-    for memo_key in memo_keys:
+        p = max(options)
         memo[memo_key] = p
-    return p
+        return p
 
-
-def part2(input_data: InputData) -> int:
-    simplify_tunnels(input_data)
-    return released_pressure_with_elephant(input_data, valve_name_to_id("AA"), 0, valve_name_to_id("AA"), 0, [], 26)
+    return released_pressure_with_elephant(valves.index(valve_name_to_id("AA")), 0, valves.index(valve_name_to_id("AA")), 0, 0, 26)
 
 
 if __name__ == "__main__":
