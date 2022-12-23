@@ -4,6 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 import typing
+from collections import deque
 
 # -1: Left, 1: Right
 InputData = list[int]
@@ -50,22 +51,50 @@ def rock_generator() -> typing.Generator[list[list[bool]], None, None]:
             yield rock
 
 
-def part1(input_data: InputData) -> int:
+def fill_cavity(chamber: deque[list[bool]]) -> deque[list[bool]]:
+    """
+    Fill in inaccessible cavities in chamber.
+    """
+    width = len(chamber[0])
+    height = len(chamber)
+    # Cells not accessible from the top, or filled.
+    inaccessible = deque([[True for _ in range(width)] for _ in range(height)])
+
+    def fill(r: int, c: int) -> None:
+        nonlocal inaccessible
+        if not chamber[r][c] and inaccessible[r][c]:
+            inaccessible[r][c] = False
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                if 0 < r + dr <= height - 1 and 0 < c + dc < width - 1:
+                    # <= in bounds is correct; want to check top edge, but not other edges.
+                    fill(r + dr, c + dc)
+
+    for i in range(1, width - 1):
+        fill(len(inaccessible) - 1, i)
+    return inaccessible
+
+
+def tower_height(input_data: InputData, rock_count: int) -> int:
     gusts = gust_generator(input_data)
     rocks = rock_generator()
     # Chamber origin in bottom-left corner, so it can grow upwards.
-    chamber = [[True for _ in range(9)]] + [[True] + [False for _ in range(7)] + [True] for _ in range(7)]
+    chamber = deque([[True for _ in range(9)]] + [[True] + [False for _ in range(7)] + [True] for _ in range(7)])
+    rows_removed = 0
 
-    def rows_free():
+    def rows_free() -> int:
         i = 0
         for row in reversed(chamber):
             if row != [True] + [False for _ in range(7)] + [True]:
                 return i
             i += 1
 
-    for _ in range(2022):
+    for _ in range(rock_count):
         # Add extra height to chamber, for next rock.
         chamber.extend([[True] + [False for _ in range(7)] + [True] for _ in range(7 - rows_free())])
+        # Remove completely covered layers at bottom.
+        while chamber[1] == [True for _ in range(9)]:
+            chamber.popleft()
+            rows_removed += 1
 
         rock = next(rocks)
         # Position of bottom-left corner of rock.
@@ -80,11 +109,14 @@ def part1(input_data: InputData) -> int:
             return False
 
         def stop_rock() -> None:
+            nonlocal chamber
+            nonlocal rows_removed
             for y in range(len(rock)):
                 for x in range(len(rock[0])):
                     if rock[y][x]:
                         assert not chamber[rock_pos[1] + y][rock_pos[0] + x]
                         chamber[rock_pos[1] + y][rock_pos[0] + x] = True
+            chamber = fill_cavity(chamber)
 
         while True:  # i.e. until rock stops against an obstruction.
             gust = next(gusts)
@@ -96,11 +128,15 @@ def part1(input_data: InputData) -> int:
             else:
                 rock_pos = (rock_pos[0], rock_pos[1] - 1)
 
-    return len(chamber) - rows_free() - 1
+    return len(chamber) - rows_free() - 1 + rows_removed
+
+
+def part1(input_data: InputData) -> int:
+    return tower_height(input_data, 2022)
 
 
 def part2(input_data: InputData) -> int:
-    pass  # TODO
+    return tower_height(input_data, 1000000000000)
 
 
 if __name__ == "__main__":
