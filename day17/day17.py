@@ -15,10 +15,10 @@ def load(input_path: Path) -> InputData:
         return [{"<": -1, ">": 1}[c] for c in f.readline().strip()]
 
 
-def gust_generator(input_data) -> typing.Generator[int, None, None]:
+def gust_generator(input_data) -> typing.Generator[tuple[int, int], None, None]:
     while True:
-        for x in input_data:
-            yield x
+        for i, x in enumerate(input_data):
+            yield i, x
 
 
 rock_shapes_str = """
@@ -46,10 +46,10 @@ rock_shapes = [list(reversed([[{"#": True, ".": False}[c] for c in line] for lin
 max_rock_height = max([len(rock) for rock in rock_shapes])
 
 
-def rock_generator() -> typing.Generator[list[list[bool]], None, None]:
+def rock_generator() -> typing.Generator[tuple[int, list[list[bool]]], None, None]:
     while True:
-        for rock in rock_shapes:
-            yield rock
+        for i, rock in enumerate(rock_shapes):
+            yield i, rock
 
 
 chamber_width = 7
@@ -80,8 +80,10 @@ def tower_height(input_data: InputData, rock_count: int) -> int:
     gusts = gust_generator(input_data)
     rocks = rock_generator()
     # Chamber origin in bottom-left corner, so it can grow upwards.
-    chamber = deque()
+    chamber: deque[int] = deque()
     rows_removed = 0
+    # (rock number, gust number, chamber): (rocks dropped, chamber height)
+    memo: dict[tuple[int, int, tuple[int]], tuple[int, int]] = {}
 
     def rows_free() -> int:
         i = 0
@@ -91,7 +93,8 @@ def tower_height(input_data: InputData, rock_count: int) -> int:
             i += 1
         return i
 
-    for _ in range(rock_count):
+    current_rock = 0
+    while current_rock < rock_count:
         # Add extra height to chamber, for next rock.
         chamber.extend([0x0 for _ in range(3 + max_rock_height - rows_free())])
         # Remove completely covered layers at bottom.
@@ -99,9 +102,18 @@ def tower_height(input_data: InputData, rock_count: int) -> int:
             chamber.popleft()
             rows_removed += 1
 
-        rock = next(rocks)
+        rock_no, rock = next(rocks)
         # Position of bottom-left corner of rock.
         rock_pos = (2, len(chamber) - max_rock_height)
+        gust_no, gust = next(gusts)
+        memo_key = (rock_no, gust_no, tuple(chamber))
+        if memo_key in memo:
+            loop_rocks = current_rock - memo[memo_key][0]
+            loop_height = len(chamber) - rows_free() + rows_removed - memo[memo_key][1]
+            loop_count = (rock_count - current_rock) // loop_rocks
+            current_rock += loop_count * loop_rocks
+            rows_removed += loop_count * loop_height
+        memo[memo_key] = current_rock, len(chamber) - rows_free() + rows_removed
 
         def rock_obstructed(dx: int, dy: int) -> bool:
             if rock_pos[0] + dx < 0 or \
@@ -126,7 +138,6 @@ def tower_height(input_data: InputData, rock_count: int) -> int:
             chamber = fill_cavity(chamber)
 
         while True:  # i.e. until rock stops against an obstruction.
-            gust = next(gusts)
             if not rock_obstructed(gust, 0):
                 rock_pos = (rock_pos[0] + gust, rock_pos[1])
             if rock_obstructed(0, -1):
@@ -134,6 +145,9 @@ def tower_height(input_data: InputData, rock_count: int) -> int:
                 break
             else:
                 rock_pos = (rock_pos[0], rock_pos[1] - 1)
+            gust_no, gust = next(gusts)
+
+        current_rock += 1
 
     return len(chamber) - rows_free() + rows_removed
 
