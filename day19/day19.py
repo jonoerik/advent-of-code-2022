@@ -14,10 +14,24 @@ class Resource(Enum):
     GEODE = 3
 
 
+# A list of quantities of each of the 4 resources (or robots for those resources),
+#  as 4 16bit integers, packed into a single 64bit int. Least significant bits are ore, then clay, then obsidian,
+#  then geodes.
+ResourcePile = int
+# As only one robot can be built each minute, and we only start with 1 ore robot, we can't reach more than 25 of any
+# robot type.
+# The cheapest robot recipes use 2 ore. By building ore robots, the maximum ore stockpile that can be reached in 24 days
+# should be around 1 + 1 + 2 + 3 + 4 + ... + 23 == 1 + 276 < 2^16, so this fits in 16bits.
+
 # Dictionary of resource-mining-robot, to the cost of that robot.
 # Costs are represented as a dictionary of resource to the quantity of that resource required.
-Blueprint = dict[Resource, dict[Resource, int]]
+Blueprint = dict[Resource, ResourcePile]
 InputData = list[Blueprint]
+
+
+def make_resource_pile(d: dict[Resource, int]) -> ResourcePile:
+    """Convert from 'dict of resources to quantity of each resource' to a ResourcePile"""
+    return sum([d[res] << (res.value * 16) for res in d])
 
 
 def load(input_path: Path) -> InputData:
@@ -34,16 +48,16 @@ def load(input_path: Path) -> InputData:
             re_match = line_regex.fullmatch(line.strip())
             assert re_match is not None
             blueprints.append({
-                Resource.ORE: {Resource.ORE: int(re_match.group("ore_robot_ore_cost"))},
-                Resource.CLAY: {Resource.ORE: int(re_match.group("clay_robot_ore_cost"))},
-                Resource.OBSIDIAN: {
+                Resource.ORE: make_resource_pile({Resource.ORE: int(re_match.group("ore_robot_ore_cost"))}),
+                Resource.CLAY: make_resource_pile({Resource.ORE: int(re_match.group("clay_robot_ore_cost"))}),
+                Resource.OBSIDIAN: make_resource_pile({
                     Resource.ORE: int(re_match.group("obs_robot_ore_cost")),
                     Resource.CLAY: int(re_match.group("obs_robot_clay_cost"))
-                },
-                Resource.GEODE: {
+                }),
+                Resource.GEODE: make_resource_pile({
                     Resource.ORE: int(re_match.group("geo_robot_ore_cost")),
                     Resource.OBSIDIAN: int(re_match.group("geo_robot_obs_cost"))
-                }
+                })
             })
 
     return blueprints
@@ -54,26 +68,36 @@ def max_geodes(bp: Blueprint) -> int:
     :param bp: Blueprint to use for robot costs.
     :return: Maximum possible number of geodes that can be produced in 24 minutes using the selected blueprint.
     """
-    def can_build(recipe: dict[Resource, int], resources: dict[Resource, int]) -> bool:
-        for element in recipe:
-            if recipe[element] > resources[element]:
+
+    def can_build(recipe: ResourcePile, resources: ResourcePile) -> bool:
+        for element in Resource:
+            if (recipe >> (element.value * 16)) & 0xFFFF > (resources >> (element.value * 16)) & 0xFFFF:
                 return False
         return True
 
-    def max_geodes_int(robots: dict[Resource, int], resources: dict[Resource, int], time_remaining: int) -> int:
+    memo: dict[tuple[ResourcePile, ResourcePile, int], int] = {}
+
+    def max_geodes_int(robots: ResourcePile, resources: ResourcePile, time_remaining: int) -> int:
         if time_remaining == 0:
-            return resources[Resource.GEODE]
+            return (resources >> (Resource.GEODE.value * 16)) & 0xFFFF
 
-        possible_builds = [res for res in Resource if can_build(bp[res], resources)]
-        possible_builds += [None]
+        nonlocal memo
+        memo_key = (robots, resources, time_remaining)
+        if memo_key in memo:
+            return memo[memo_key]
 
-        return max([max_geodes_int(
-                {res: robots[res] + (1 if res == possible_build else 0) for res in Resource},
-                {res: resources[res] + robots[res] for res in Resource},
+        possible_builds = [1 << (res.value * 16) for res in Resource if can_build(bp[res], resources)]
+        possible_builds += [0]
+
+        result = max([max_geodes_int(
+                robots + possible_build,
+                resources + robots,
                 time_remaining - 1)
             for possible_build in possible_builds])
+        memo[memo_key] = result
+        return result
 
-    return max_geodes_int({i: 1 if i == Resource.ORE else 0 for i in Resource}, {i: 0 for i in Resource}, 24)
+    return max_geodes_int(1, 0, 24)
 
 
 def part1(input_data: InputData) -> int:
