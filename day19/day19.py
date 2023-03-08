@@ -68,36 +68,59 @@ def max_geodes(bp: Blueprint) -> int:
     :param bp: Blueprint to use for robot costs.
     :return: Maximum possible number of geodes that can be produced in 24 minutes using the selected blueprint.
     """
-
     def can_build(recipe: ResourcePile, resources: ResourcePile) -> bool:
         for element in Resource:
             if (recipe >> (element.value * 16)) & 0xFFFF > (resources >> (element.value * 16)) & 0xFFFF:
                 return False
         return True
 
-    memo: dict[tuple[ResourcePile, ResourcePile, int], int] = {}
+    # A potential state in this puzzle;
+    # a set of built robots, set of accumulated resources, and a time remaining.
+    PuzzleState = tuple[ResourcePile, ResourcePile, int]
 
-    def max_geodes_int(robots: ResourcePile, resources: ResourcePile, time_remaining: int) -> int:
+    processed: set[PuzzleState] = set()
+    to_process: set[PuzzleState] = {(1, 0, 24)}
+    current_best = 0
+    highest_lower_bound = 0
+
+    def process_node(robots: ResourcePile, resources: ResourcePile, time_remaining: int) -> list[PuzzleState]:
+        nonlocal current_best
+        nonlocal highest_lower_bound
+
+        geodes = (resources >> (Resource.GEODE.value * 16)) & 0xFFFF
+        geode_robots = (robots >> (Resource.GEODE.value * 16)) & 0xFFFF
         if time_remaining == 0:
-            return (resources >> (Resource.GEODE.value * 16)) & 0xFFFF
+            if geodes > current_best:
+                current_best = geodes
+            if geodes > highest_lower_bound:
+                highest_lower_bound = geodes
+            return []
 
-        nonlocal memo
-        memo_key = (robots, resources, time_remaining)
-        if memo_key in memo:
-            return memo[memo_key]
+        lower_bound = geodes + (time_remaining * geode_robots)
+        if lower_bound > highest_lower_bound:
+            highest_lower_bound = lower_bound
 
-        possible_builds = [1 << (res.value * 16) for res in Resource if can_build(bp[res], resources)]
-        possible_builds += [0]
+        # Assume we build 1 geode robot every remaining turn.
+        # If 1 turn remains, geodes produced = current geodes + number of geode robots
+        # If 2 turns remain, geodes produced = geodes + robots + (robots + 1)
+        # For t turns remaining, geodes produced = geodes + t * robots + T(n-1), where T(n) is the nth triangular number
+        upper_bound = geodes + (time_remaining * geode_robots) + (((time_remaining - 1) * time_remaining) // 2)
+        if upper_bound < highest_lower_bound:
+            # Can't beat the minimum guaranteed by a different puzzle state, so give up on this branch.
+            return []
 
-        result = max([max_geodes_int(
-                robots + possible_build,
-                resources + robots,
-                time_remaining - 1)
-            for possible_build in possible_builds])
-        memo[memo_key] = result
-        return result
+        possible_builds = [res for res in Resource if can_build(bp[res], resources)]
 
-    return max_geodes_int(1, 0, 24)
+        return [(robots + (1 << (possible_build.value * 16)), resources + robots - bp[possible_build], time_remaining - 1)
+                for possible_build in possible_builds] + [(robots, resources + robots, time_remaining - 1)]
+
+    while len(to_process) > 0:
+        state = to_process.pop()
+        if state not in processed:
+            processed.add(state)
+            to_process.update(process_node(*state))
+
+    return current_best
 
 
 def part1(input_data: InputData) -> int:
