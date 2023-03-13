@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from enum import Enum
 import re
+import math
 
 
 class Resource(Enum):
@@ -18,10 +19,10 @@ class Resource(Enum):
 #  as 4 16bit integers, packed into a single 64bit int. Least significant bits are ore, then clay, then obsidian,
 #  then geodes.
 ResourcePile = int
-# As only one robot can be built each minute, and we only start with 1 ore robot, we can't reach more than 25 of any
+# As only one robot can be built each minute, and we only start with 1 ore robot, we can't reach more than 33 of any
 # robot type.
-# The cheapest robot recipes use 2 ore. By building ore robots, the maximum ore stockpile that can be reached in 24 days
-# should be around 1 + 1 + 2 + 3 + 4 + ... + 23 == 1 + 276 < 2^16, so this fits in 16bits.
+# The cheapest robot recipes use 2 ore. By building ore robots, the maximum ore stockpile that can be reached in 32 steps
+# should be around 1 + 1 + 2 + 3 + 4 + ... + 31 == 1 + 496 < 2^16, so this fits in 16bits.
 
 # Dictionary of resource-mining-robot, to the cost of that robot.
 # Costs are represented as a dictionary of resource to the quantity of that resource required.
@@ -63,10 +64,11 @@ def load(input_path: Path) -> InputData:
     return blueprints
 
 
-def max_geodes(bp: Blueprint) -> int:
+def max_geodes(bp: Blueprint, time_limit: int) -> int:
     """
     :param bp: Blueprint to use for robot costs.
-    :return: Maximum possible number of geodes that can be produced in 24 minutes using the selected blueprint.
+    :param time_limit: Number of minutes over which to build robots and collect geodes.
+    :return: Maximum possible number of geodes that can be produced in time_limit minutes using the selected blueprint.
     """
     def can_build(recipe: ResourcePile, resources: ResourcePile) -> bool:
         for element in Resource:
@@ -78,8 +80,6 @@ def max_geodes(bp: Blueprint) -> int:
     # a set of built robots, set of accumulated resources, and a time remaining.
     PuzzleState = tuple[ResourcePile, ResourcePile, int]
 
-    processed: set[PuzzleState] = set()
-    to_process: set[PuzzleState] = {(1, 0, 24)}
     current_best = 0
     highest_lower_bound = 0
 
@@ -104,7 +104,7 @@ def max_geodes(bp: Blueprint) -> int:
         # If 1 turn remains, geodes produced = current geodes + number of geode robots
         # If 2 turns remain, geodes produced = geodes + robots + (robots + 1)
         # For t turns remaining, geodes produced = geodes + t * robots + T(n-1), where T(n) is the nth triangular number
-        upper_bound = geodes + (time_remaining * geode_robots) + (((time_remaining - 1) * time_remaining) // 2)
+        upper_bound = lower_bound + (((time_remaining - 1) * time_remaining) // 2)
         if upper_bound < highest_lower_bound:
             # Can't beat the minimum guaranteed by a different puzzle state, so give up on this branch.
             return []
@@ -114,21 +114,31 @@ def max_geodes(bp: Blueprint) -> int:
         return [(robots + (1 << (possible_build.value * 16)), resources + robots - bp[possible_build], time_remaining - 1)
                 for possible_build in possible_builds] + [(robots, resources + robots, time_remaining - 1)]
 
+    # Dict of robots and resources, to the greatest (earliest) time_remaining that has been seen with those resources.
+    best_time_remaining: dict[tuple[ResourcePile, ResourcePile], int] = {}
+    to_process: set[PuzzleState] = {(1, 0, time_limit)}
+
     while len(to_process) > 0:
         state = to_process.pop()
-        if state not in processed:
-            processed.add(state)
-            to_process.update(process_node(*state))
+
+        previous_time_remaining = best_time_remaining.get(state[:2], None)
+        if previous_time_remaining is not None and previous_time_remaining >= state[2]:
+            # We've already seen this state with equal or greater time_remaining.
+            # We can't beat the number of geodes mined with >= time, so give up on this state.
+            continue
+
+        best_time_remaining[state[:2]] = state[2]
+        to_process.update(process_node(*state))
 
     return current_best
 
 
 def part1(input_data: InputData) -> int:
-    return sum([(i+1) * max_geodes(bp) for i, bp in enumerate(input_data)])
+    return sum([(i+1) * max_geodes(bp, 24) for i, bp in enumerate(input_data)])
 
 
 def part2(input_data: InputData) -> int:
-    pass  # TODO
+    return math.prod([max_geodes(bp, 32) for bp in input_data[:3]])
 
 
 if __name__ == "__main__":
