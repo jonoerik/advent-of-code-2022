@@ -12,9 +12,11 @@ def load(input_path: Path) -> InputData:
         return [int(line.strip()) for line in f.readlines()]
 
 
-def part1(input_data: InputData) -> int:
-    # Annotate each data element with its initial index in the input data.
-    data = list(enumerate(input_data))
+def mix(input_data: InputData, data: list[tuple[int, int]]) -> None:
+    """Perform mixing iteration, modifying data in place.
+    :param input_data: Original, um-mixed input data.
+    :param data: Data to be mixed, with each element being a tuple of (index in original list, value).
+    """
     for i in range(len(data)):
         val = input_data[i]
         # Current index of the item to be moved.
@@ -23,13 +25,26 @@ def part1(input_data: InputData) -> int:
         new_index = ((current_index + val - 1) % (len(data) - 1)) + 1
         del data[current_index]
         data.insert(new_index, (i, val))
+
+
+def part1(input_data: InputData) -> int:
+    # Annotate each data element with its initial index in the input data.
+    data = list(enumerate(input_data))
+    mix(input_data, data)
     data = [elem[1] for elem in data]
     zero_index = data.index(0)
     return sum([data[(zero_index + i) % len(data)] for i in [1000, 2000, 3000]])
 
 
 def part2(input_data: InputData) -> int:
-    pass  # TODO
+    decryption_key = 811589153
+    input_data = [v * decryption_key for v in input_data]
+    data = list(enumerate(input_data))
+    for i in range(10):
+        mix(input_data, data)
+    data = [elem[1] for elem in data]
+    zero_index = data.index(0)
+    return sum([data[(zero_index + i) % len(data)] for i in [1000, 2000, 3000]])
 
 
 if __name__ == "__main__":
